@@ -3,24 +3,19 @@ var
 	fs      = require('fs'),
 	program = require("commander"),
 	request = require("request"),
+	colors  = require("colors"),
+	array = require("mout").array,
+	trim    = require("mout").string.trim,
 	spec,
 	current_uri,
-	page_list,
-	total
-	;
+	uri_list,
+	total;
 
-function get_next_uri (err, agent) {
-	if (!page_list.length){
-		console.log("[INFO] List empty.");
-		return;
-	}
-	current_uri = program.prefix+page_list.shift();
-	fetch_page();
-}
 
-function parse_document(err,window){
-	if (!!err){
-		console.log("[FAIL] %s",current_uri);
+function parse_document(err, window) {
+	"use strict";
+	if (!!err) {
+		console.log("[FAIL] %s", current_uri);
 		console.log(err);
 		get_next_uri();
 		return;
@@ -28,77 +23,93 @@ function parse_document(err,window){
 	if (!!spec.test(window)) {
 		get_next_uri();
 	} else {
-		console.warn("[!] Spec failed and queue is stopped.");
+		console.warn("! spec failed and queue has stopped!".red);
 	}
 }
 
-function create_document (body) {
-	jsdom.env( {
+function create_document(body) {
+	"use strict";
+	jsdom.env({
 		html: body,
 		scripts: [program.script],
 		done: parse_document,
 		ProcessExternalResources : false,
 		FetchExternalResources : false
-	} );
-}
-
-function fetch_page () {
-	console.info("[INFO] (%s/%s) %s",(total-page_list.length),total,current_uri);
-	request(current_uri,function(error,response,body){
-		if (!!error || (!!response && response.statusCode !== 404)){
-			console.warn("[!] request failed");
-			get_next_uri();
-			return;
-		}
-		if (!!body){
-			create_document(body);
-		} else {
-			//TO-DO
-		}
 	});
 }
 
-function init(){
-
-	if (!page_list || !total){
-		console.log("Empty uri list: '%s'",program.file);
-		return;
-	}
-
-	get_next_uri();
+function fetch_page() {
+	"use strict";
+	console.info("+ (%s/%s) %s".cyan, (total - uri_list.length), total, current_uri);
+	request(current_uri, function (error, response, body) {
+		if (!!error || (!!response && +response.statusCode === 404)) {
+			console.warn("! request failed %s".red, response.statusCode);
+			get_next_uri();
+			return;
+		}
+		if (!!body) {
+			create_document(body);
+			return;
+		}
+		console.warn("! document as no body".red);
+		get_next_uri();
+	});
 }
 
-function read_uri_list(err,data){
-	if (err){
-		console.log("Failed to read file: '%s'",err.path);
+function get_next_uri(err, agent) {
+	"use strict";
+	if (!uri_list.length) {
+		console.log("* List empty.".magenta);
 		return;
 	}
-	page_list = data.split("\n");
-	total = page_list.length;
-	init();
+	current_uri = program.prefix + trim(uri_list.shift());
+	fetch_page();
+}
+
+function read_uri_list(err, data) {
+	"use strict";
+	if (err) {
+		console.log("! failed to read file: '%s'".red, err.path);
+		return;
+	}
+	//clear empty values
+	uri_list = array.map(data.split("\n"), function (val) {
+		return !!val && !!val.length ? trim(val) : null;
+	});
+	//remove empty entries
+	uri_list = array.compact(uri_list);
+	if (!uri_list.length) {
+		console.log("- file '%s' is empty".yellow, program.file);
+		return;
+	}
+	//for log only
+	total = uri_list.length;
+	// init queue
+	get_next_uri();
 }
 
 program
 	.version('0.0.1')
 	.usage('[query] < -f my-local-uri -l http://localhost >')
-	.option('-f, --file <n>', 'URI list file name',"uri-list")
+	.option('-f, --file <n>', 'URI list file name', "uri-list")
 	.option('-p, --prefix <n>', 'Leading string to concat on each uir inside URI file list', "")
 	.option('-s, --script <n>', 'Javascript to be injected on the page for the test', "http://code.jquery.com/jquery-2.1.0.min.js");
 
 program
 	.command('*')
-	.description("firt argument must be the query to be executed")
-	.action(function(env){
+	.description("Firt argument must be path to the spec file that will be called for each page")
+	.action(function (env) {
+		"use strict";
 		try {
 			spec = require(env);
 		} catch (err) {
-			console.error("[!] Failed to load spec: '%s'",env);
+			console.error("! Failed to load spec: '%s'".red, env);
 			return;
 		}
-		if (!!spec && spec.test){
+		if (!!spec && spec.test) {
 			fs.readFile(program.file, "utf8", read_uri_list);
 		} else {
-			console.error("[!] Failed to load %s",env);
+			console.error("! spec file '%s' need a method called 'test'".red, env);
 		}
 	});
 
