@@ -1,0 +1,11 @@
+{
+	"name": "rquery",
+	"description": "todo",
+	"author": "igor almeida",
+	"version": "0.0.1",
+	"devDependencies": {
+		"jsdom": "~0.10.0",
+		"commander": "~2.1.0",
+		"request": "~2.33.0"
+	}
+}

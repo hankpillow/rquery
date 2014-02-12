@@ -1,0 +1,105 @@
+var
+	jsdom   = require('jsdom'),
+	fs      = require('fs'),
+	program = require("commander"),
+	request = require("request"),
+	spec,
+	current_uri,
+	page_list,
+	total
+	;
+
+function get_next_uri (err, agent) {
+	if (!page_list.length){
+		console.log("[INFO] List empty.");
+		return;
+	}
+	current_uri = program.prefix+page_list.shift();
+	fetch_page();
+}
+
+function parse_document(err,window){
+	if (!!err){
+		console.log("[FAIL] %s",current_uri);
+		console.log(err);
+		get_next_uri();
+		return;
+	}
+	if (!!spec.test(window)) {
+		get_next_uri();
+	} else {
+		console.warn("[!] Spec failed and queue is stopped.");
+	}
+}
+
+function create_document (body) {
+	jsdom.env( {
+		html: body,
+		scripts: [program.script],
+		done: parse_document,
+		ProcessExternalResources : false,
+		FetchExternalResources : false
+	} );
+}
+
+function fetch_page () {
+	console.info("[INFO] (%s/%s) %s",(total-page_list.length),total,current_uri);
+	request(current_uri,function(error,response,body){
+		if (!!error || (!!response && response.statusCode !== 404)){
+			console.warn("[!] request failed");
+			get_next_uri();
+			return;
+		}
+		if (!!body){
+			create_document(body);
+		} else {
+			//TO-DO
+		}
+	});
+}
+
+function init(){
+
+	if (!page_list || !total){
+		console.log("Empty uri list: '%s'",program.file);
+		return;
+	}
+
+	get_next_uri();
+}
+
+function read_uri_list(err,data){
+	if (err){
+		console.log("Failed to read file: '%s'",err.path);
+		return;
+	}
+	page_list = data.split("\n");
+	total = page_list.length;
+	init();
+}
+
+program
+	.version('0.0.1')
+	.usage('[query] < -f my-local-uri -l http://localhost >')
+	.option('-f, --file <n>', 'URI list file name',"uri-list")
+	.option('-p, --prefix <n>', 'Leading string to concat on each uir inside URI file list', "")
+	.option('-s, --script <n>', 'Javascript to be injected on the page for the test', "http://code.jquery.com/jquery-2.1.0.min.js");
+
+program
+	.command('*')
+	.description("firt argument must be the query to be executed")
+	.action(function(env){
+		try {
+			spec = require(env);
+		} catch (err) {
+			console.error("[!] Failed to load spec: '%s'",env);
+			return;
+		}
+		if (!!spec && spec.test){
+			fs.readFile(program.file, "utf8", read_uri_list);
+		} else {
+			console.error("[!] Failed to load %s",env);
+		}
+	});
+
+program.parse(process.argv);
