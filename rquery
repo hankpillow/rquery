@@ -4,7 +4,7 @@ var
 	program = require("commander"),
 	request = require("request"),
 	colors  = require("colors"),
-	array = require("mout").array,
+	array   = require("mout").array,
 	trim    = require("mout").string.trim,
 	spec,
 	current_uri,
@@ -40,10 +40,15 @@ function create_document(body) {
 
 function fetch_page() {
 	"use strict";
-	console.info("+ (%s/%s) %s".cyan, (total - uri_list.length), total, current_uri);
+	console.info("+ (%s/%s) %s".inverse, (total - uri_list.length), total, current_uri);
 	request(current_uri, function (error, response, body) {
-		if (!!error || (!!response && +response.statusCode === 404)) {
-			console.warn("! request failed %s".red, response.statusCode);
+		if (!!error){
+			console.error("! request error %s".red, error);
+			get_next_uri();
+			return;
+		}
+		if(!!response && /^4\d{2}/.test(response.statusCode.toString())) {
+			console.warn("! request failed %s".red,response.statusCode);
 			get_next_uri();
 			return;
 		}
@@ -51,7 +56,7 @@ function fetch_page() {
 			create_document(body);
 			return;
 		}
-		console.warn("! document as no body".red);
+		console.warn("! document as no body".cyan);
 		get_next_uri();
 	});
 }
@@ -89,15 +94,15 @@ function read_uri_list(err, data) {
 }
 
 program
-	.version('0.0.1')
-	.usage('[query] < -f my-local-uri -l http://localhost >')
-	.option('-f, --file <n>', 'URI list file name', "uri-list")
-	.option('-p, --prefix <n>', 'Leading string to concat on each uir inside URI file list', "")
-	.option('-s, --script <n>', 'Javascript to be injected on the page for the test', "http://code.jquery.com/jquery-2.1.0.min.js");
+	.version('0.0.2')
+	.usage('<spec-file> [-f my-local-uri ...] ')
+	.option('-f, --file <n>', 'URI list file name. @default uri-list', "uri-list")
+	.option('-p, --prefix <n>', 'Leading string to concat for every uri', "")
+	.option('-s, --script <n>', 'Javascript to be injected on the page for the test @default http://code.jquery.com/jquery-2.1.0.min.js', "http://code.jquery.com/jquery-2.1.0.min.js");
 
 program
-	.command('*')
-	.description("Firt argument must be path to the spec file that will be called for each page")
+	.command("*")
+	.description("The first argument must be the path to the spec you want to run for each page.")
 	.action(function (env) {
 		"use strict";
 		try {
@@ -114,3 +119,6 @@ program
 	});
 
 program.parse(process.argv);
+if (!program.args.length){
+	program.help();
+}
