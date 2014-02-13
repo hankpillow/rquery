@@ -1,4 +1,12 @@
 rquery
 ======
 
-simple nodejs tool to test javascript into remote pages
+#What is rquery?
+
+#Getting started
+
+#Examples
+
+#to-do
+ - secure urls
+ - setting cookies
