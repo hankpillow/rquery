@@ -1,13 +1,27 @@
 {
 	"name": "rquery",
-	"description": "todo",
-	"author": "igor almeida",
 	"version": "0.0.1",
+	"description": "helps you to run local javascript test on remote pages",
+	"main" : "rquery",
+	"author": "igor almeida",
+	"homepage" : "https://github.com/hankpillow/rquery",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/hankpillow/rquery.git"
+	},
+	"bugs": {
+		"url": "https://github.com/hankpillow/rquery/issues/"
+	},
 	"devDependencies": {
 		"jsdom": "~0.10.0",
 		"commander": "~2.1.0",
 		"request": "~2.33.0",
 		"colors": "~0.6.0",
 		"mout": "~0.9.0"
-	}
+	},
+	"keywords": [
+		"jquery",
+		"remote",
+		"query"
+	]
 }
