@@ -1,21 +1,18 @@
-rquery
-======
-
 v0.0.1
 
-#What is rquery?
+##What is rquery?
 
-`rquery` is a **personal project** made with nodejs that gives you the ability to run javascript over the html of remote pages. All this is local, you won't iteract with any remote page!
+This is a **personal project** made with nodejs that gives you the ability to run javascript over the html of remote pages. All this is local, you won't iteract with any remote page!
 
-#Why?
+##Why?
 
 Sometimes you find yourself trying to figure out which pages you have to test after changing a html component, css, ajax service, etc. This script was designed to help you with it
 
-#How?
+##How?
 
 The `rquery` will just bring the html from an url (or url list) and create a virtual document where you can run your scripts and test/check whatever you want.
 
-#Getting started
+##Getting started
 
 1 - [install nodejs](http://nodejs.org/)
 
@@ -76,7 +73,7 @@ To make this work from everywhere (and chop off the leading `node`):
 
 Now you can just call `$ rquery ./spec.js -u http://www.github.com`
 
-#to-do
+###to-do
 
 - test request with redirect
 - secure urls
