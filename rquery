@@ -1,4 +1,9 @@
+#!/usr/bin/env node
+
+/*jslint undef: true, browser: true */
+
 var
+	// libs
 	jsdom   = require('jsdom'),
 	fs      = require('fs'),
 	program = require("commander"),
@@ -6,18 +11,29 @@ var
 	colors  = require("colors"),
 	array   = require("mout").array,
 	trim    = require("mout").string.trim,
-	spec,
-	current_uri,
-	uri_list,
-	total;
+	// local vars
+	spec, current_uri, uri_list, total;
 
+function get_next_uri(err, agent) {
+	"use strict";
+	if (!uri_list.length) {
+		console.log("- no more url to request.");
+		return;
+	}
+	current_uri = program.prefix + trim(uri_list.shift());
+	fetch_page();
+}
 
 function parse_document(err, window) {
 	"use strict";
 	if (!!err) {
-		console.log("[FAIL] %s", current_uri);
-		console.log(err);
+		console.error("! error creating document for: '%s'".red, current_uri);
+		console.dir(err);
 		get_next_uri();
+		return;
+	}
+	if (!window) {
+		console.error();
 		return;
 	}
 	if (!!spec.test(window)) {
@@ -42,13 +58,13 @@ function fetch_page() {
 	"use strict";
 	console.info("+ (%s/%s) %s".inverse, (total - uri_list.length), total, current_uri);
 	request(current_uri, function (error, response, body) {
-		if (!!error){
+		if (!!error) {
 			console.error("! request error %s".red, error);
 			get_next_uri();
 			return;
 		}
-		if(!!response && /^4\d{2}/.test(response.statusCode.toString())) {
-			console.warn("! request failed %s".red,response.statusCode);
+		if (!!response && /^4\d{2}/.test(response.statusCode.toString())) {
+			console.warn("! request failed %s".red, response.statusCode);
 			get_next_uri();
 			return;
 		}
@@ -61,14 +77,12 @@ function fetch_page() {
 	});
 }
 
-function get_next_uri(err, agent) {
+function start() {
 	"use strict";
-	if (!uri_list.length) {
-		console.log("* List empty.".magenta);
-		return;
-	}
-	current_uri = program.prefix + trim(uri_list.shift());
-	fetch_page();
+	//for log only
+	total = uri_list.length;
+	// init queue
+	get_next_uri();
 }
 
 function read_uri_list(err, data) {
@@ -87,18 +101,16 @@ function read_uri_list(err, data) {
 		console.log("- file '%s' is empty".yellow, program.file);
 		return;
 	}
-	//for log only
-	total = uri_list.length;
-	// init queue
-	get_next_uri();
+	start();
 }
 
 program
 	.version('0.0.2')
-	.usage('<spec-file> [-f my-local-uri ...] ')
-	.option('-f, --file <n>', 'URI list file name. @default uri-list', "uri-list")
-	.option('-p, --prefix <n>', 'Leading string to concat for every uri', "")
-	.option('-s, --script <n>', 'Javascript to be injected on the page for the test @default http://code.jquery.com/jquery-2.1.0.min.js', "http://code.jquery.com/jquery-2.1.0.min.js");
+	.usage('<spec-file> [-u http://www.github.com ...] ')
+	.option('-f, --file <n>', 'text file with one url per line')
+	.option('-u, --url <n>', 'single url')
+	.option('-p, --prefix <n>', 'leading string to concat for every url request', "")
+	.option('-s, --script <n>', 'hosted javascript file to be injected on the page. @default http://code.jquery.com/jquery-2.1.0.min.js', "http://code.jquery.com/jquery-2.1.0.min.js");
 
 program
 	.command("*")
@@ -111,14 +123,21 @@ program
 			console.error("! Failed to load spec: '%s'".red, env);
 			return;
 		}
-		if (!!spec && spec.test) {
+		if (!spec || (!!spec && !spec.test)) {
+			console.error("! spec file '%s' need a method called 'test'".red, env);
+			return;
+		}
+		if (!!program.url) {
+			uri_list = [program.url];
+			start();
+		} else if (program.file) {
 			fs.readFile(program.file, "utf8", read_uri_list);
 		} else {
-			console.error("! spec file '%s' need a method called 'test'".red, env);
+			program.help();
 		}
 	});
 
 program.parse(process.argv);
-if (!program.args.length){
+if (!program.args.length) {
 	program.help();
 }
