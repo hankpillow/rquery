@@ -121,6 +121,7 @@ program
 			spec = require(env);
 		} catch (err) {
 			console.error("! Failed to load spec: '%s'".red, env);
+			console.info("try providing the absolute path to your spec file.".yellow);
 			return;
 		}
 		if (!spec || (!!spec && !spec.test)) {
