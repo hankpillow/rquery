@@ -68,11 +68,13 @@ terminal output:
 - no more url to request.
 ```
 
----
+To make this work from everywhere (and chop off the leading `node`):
 
-You can also add exec permission to this file `chmod +x rquery` and export the place you cloned this repository making the rquery a command you can call from everywhere.
+1 - change the file persmission: `chmod +x rquery`
 
-Now you can just call `rquery my-spec-file -h http://github.com`
+2 - `export PATH="path/to/my/clone-rquery:$PATH"`
+
+Now you can just call `$ rquery ./spec.js -u http://www.github.com`
 
 #to-do
 
