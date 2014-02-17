@@ -1,144 +1,166 @@
-#!/usr/bin/env node
+/*jslint undef: true, browser: true*/
+/*globals phantom */
 
-/*jslint undef: true, browser: true */
-
-var
-	// libs
-	jsdom   = require('jsdom'),
-	fs      = require('fs'),
-	program = require("commander"),
-	request = require("request"),
-	colors  = require("colors"),
-	array   = require("mout").array,
-	trim    = require("mout").string.trim,
-	// local vars
-	spec, current_uri, uri_list, total;
+var fs      = require('fs'),
+	sys     = require('system'),
+	map     = require("mout/array/map"),
+	compact = require("mout/array/compact"),
+	trim    = require("mout/string/trim"),
+	webpage = require("webpage").create(),
+	spec,
+	config,
+	current_uri,
+	uri_list,
+	time,
+	total;
 
 function get_next_uri(err, agent) {
 	"use strict";
-	if (!uri_list.length) {
-		console.log("- no more url to request.");
+	if (!uri_list || (!!uri_list && !uri_list.length)) {
+		phantom.exit(0);
 		return;
 	}
-	current_uri = program.prefix + trim(uri_list.shift());
+	current_uri = config.prefix + trim(uri_list.shift());
 	fetch_page();
 }
 
-function parse_document(err, window) {
+function parse_document() {
 	"use strict";
-	if (!!err) {
-		console.error("! error creating document for: '%s'".red, current_uri);
-		console.dir(err);
-		get_next_uri();
-		return;
-	}
-	if (!window) {
-		console.error();
-		return;
-	}
-	if (!!spec.test(window)) {
+	var result = webpage.evaluate(spec.test);
+	if (result !== false || result !== undefined) {
+		if (!!result.success && !!result.success.length) {
+			console.log(result.success.join("\n"));
+		}
+		if (!!result.fail && !!result.fail.length) {
+			console.warn(result.fail.join("\n"));
+		}
 		get_next_uri();
 	} else {
-		console.warn("! spec failed and queue has stopped!".red);
+		console.warn("! spec not passed!".red);
+		phantom.exit(0);
 	}
-}
-
-function create_document(body) {
-	"use strict";
-	jsdom.env({
-		html: body,
-		scripts: [program.script],
-		done: parse_document,
-		ProcessExternalResources : false,
-		FetchExternalResources : false
-	});
 }
 
 function fetch_page() {
 	"use strict";
-	console.info("+ (%s/%s) %s".inverse, (total - uri_list.length), total, current_uri);
-	request(current_uri, function (error, response, body) {
-		if (!!error) {
-			console.error("! request error %s".red, error);
+	webpage.onLoadFinished = function (status) {
+		var count = "(" + (total - uri_list.length) + "/" + total + ")",
+			loaded_at = (new Date().getTime() - time) / 1000 + "ms";
+		console.info(count + "\t" + current_uri + "\t" + loaded_at);
+		if (status === "fail") {
+			console.error("! request failed");
 			get_next_uri();
 			return;
 		}
-		if (!!response && /^4\d{2}/.test(response.statusCode.toString())) {
-			console.warn("! request failed %s".red, response.statusCode);
-			get_next_uri();
-			return;
-		}
-		if (!!body) {
-			create_document(body);
-			return;
-		}
-		console.warn("! document as no body".cyan);
-		get_next_uri();
-	});
+		webpage.includeJs(config.inject, parse_document);
+	};
+	webpage.open(current_uri);
 }
 
-function start() {
+function check_config() {
 	"use strict";
-	//for log only
+	webpage.onLoadStarted = function (args) {
+		time = new Date().getTime();
+	};
+	webpage.onError = function (args) {
+		console.error("Failed to load url:" + current_uri);
+		get_next_uri();
+	};
+	webpage.onResourceReceived = function(resource) {
+		if (resource.url === current_uri && /^4\d{2}/.test(resource.status)) {
+			webpage.stop();
+		}
+	};
+	try {
+		spec = require(config.spec);
+	} catch (err) {
+		console.error("! Failed to load spec: '" + config.spec + "'");
+		console.info("try providing the absolute path to your spec file.");
+		phantom.exit(1);
+		return;
+	}
+	if (!spec || (!!spec && !spec.test)) {
+		console.error("! spec file '" + config.spec + "' need a method called 'test'");
+		phantom.exit(1);
+		return;
+	}
 	total = uri_list.length;
-	// init queue
 	get_next_uri();
 }
 
-function read_uri_list(err, data) {
+function read_uri_list() {
 	"use strict";
-	if (err) {
-		console.log("! failed to read file: '%s'".red, err.path);
+	var file;
+	try {
+		file = fs.open(config.uri_list, "r");
+	} catch (err) {
+		console.error("! failed to read file: '" + config.uri_list + "'");
+		phantom.exit(1);
 		return;
 	}
-	//clear empty values
-	uri_list = array.map(data.split("\n"), function (val) {
+	uri_list = compact(map(file.read().split("\n"), function (val) {
 		return !!val && !!val.length ? trim(val) : null;
-	});
-	//remove empty entries
-	uri_list = array.compact(uri_list);
+	}));
+	file.close();
 	if (!uri_list.length) {
-		console.log("- file '%s' is empty".yellow, program.file);
+		console.log("- file '" + config.uri_list + "' is empty");
+		phantom.exit(0);
 		return;
 	}
-	start();
+	check_config();
 }
 
-program
-	.version('0.0.2')
-	.usage('<spec-file> [-u http://www.github.com ...] ')
-	.option('-f, --file <n>', 'text file with one url per line')
-	.option('-u, --url <n>', 'single url')
-	.option('-p, --prefix <n>', 'leading string to concat for every url request', "")
-	.option('-s, --script <n>', 'hosted javascript file to be injected on the page. @default http://code.jquery.com/jquery-2.1.0.min.js', "http://code.jquery.com/jquery-2.1.0.min.js");
-
-program
-	.command("*")
-	.description("The first argument must be the path to the spec you want to run for each page.")
-	.action(function (env) {
-		"use strict";
-		try {
-			spec = require(env);
-		} catch (err) {
-			console.error("! Failed to load spec: '%s'".red, env);
-			console.info("try providing the absolute path to your spec file.".yellow);
-			return;
-		}
-		if (!spec || (!!spec && !spec.test)) {
-			console.error("! spec file '%s' need a method called 'test'".red, env);
-			return;
-		}
-		if (!!program.url) {
-			uri_list = [program.url];
-			start();
-		} else if (program.file) {
-			fs.readFile(program.file, "utf8", read_uri_list);
-		} else {
-			program.help();
+function init() {
+	"use strict";
+	config = {
+		prefix : "",
+		url : null,
+		uri_list : null,
+		spec : null,
+		inject : "http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"
+	};
+	var flagname = null;
+	sys.args.forEach(function (val) {
+		if (/^-/.test(val)) {
+			switch (val) {
+			case "-u":
+				flagname = "url";
+				break;
+			case "-l":
+				flagname = "uri_list";
+				break;
+			case "-s":
+				flagname = "spec";
+				break;
+			case "-p":
+				flagname = "prefix";
+				break;
+			case "-i":
+				flagname = "inject";
+				break;
+			}
+		} else if (!!flagname) {
+			config[flagname] = val;
+			flagname = null;
 		}
 	});
-
-program.parse(process.argv);
-if (!program.args.length) {
-	program.help();
+	if (config.url) {
+		uri_list = [config.url];
+		check_config();
+	} else if (config.uri_list) {
+		read_uri_list();
+	} else {
+		console.log("Usage:");
+		console.log(" $ rquery -s <spec-file> -h htt://github.com");
+		console.log(" $ rquery -s <spec-file> -l <my-url-list-file>");
+		console.log("Flags:");
+		console.log(" -u <url> Single url");
+		console.log(" -p <prefix> Leading string to be applyed on every url @see -l");
+		console.log(" -s <spec> Spec file that will be called to validate every success request.");
+		console.log(" -l <list-url> A file with a list of url. One url per line.");
+		console.log(" -i <inject script> A hosted javascript to be inject on every request.");
+		phantom.exit(0);
+		return;
+	}
 }
+init();
