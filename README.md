@@ -1,20 +1,35 @@
-v0.0.1
+v0.0.2
 
 ##What is rquery?
 
-This is a **personal project** made with nodejs that gives you the ability to run javascript over the html of remote pages. All this is local, you won't iteract with any remote page!
+This is **personal project** that creates a simple api to use [phantomjs](phantomjs.org) and test the loaded pages using "spec files".
 
 ##Why?
 
-Sometimes you find yourself trying to figure out which pages you have to test after changing a html component, css, ajax service, etc. This script was designed to help you with it
+Sometimes you find yourself trying to figure out which pages you have to test after changing a html component, css, ajax service, etc. This script was designed to help you with it.
 
-##How?
+###Usage:
 
-The `rquery` will just bring the html from an url (or url list) and create a virtual document where you can run your scripts and test/check whatever you want.
+- Usage:
+
+```
+ $ rquery -s <spec-file> -h htt://github.com
+ $ rquery -s <spec-file> -l <my-url-list-file>
+```
+
+- Flags:
+
+```
+ -u <url> Single url
+ -p <prefix> Leading string to be applyed on every url @see -l
+ -s <spec> Spec file that will be called to validate every success request.
+ -l <list-url> A file with a list of url. One url per line.
+ -i <inject script> A hosted javascript to be inject on every request. @default http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js
+```
 
 ##Getting started
 
-1 - [install nodejs](http://nodejs.org/)
+1 - [install phantomjs](http://phantomjs.org/)
 
 2 - clone this repository
 
@@ -22,7 +37,7 @@ The `rquery` will just bring the html from an url (or url list) and create a vir
 git clone https://github.com/hankpillow/rquery.git
 ```
 
-3 - fetch dependencies
+3 - install dependencies
 
 ```
 npm install
@@ -32,49 +47,54 @@ npm install
 
 There is just a single rule for it, your spec file has to export a method called `test`.
 
-The method will be called for every url requested, providing a window object where you can run your tests.
+The method will be called for every url requested, providing the *document* element then you can run your tests.
 
-If you want to stop the queue - in case of testing a url list file (`rquery -h`) - just `return false;` and it's done.
+If you want to stop the queue - in case of testing a url list file (`rquery -l my-url-list`) - just `return false;` and it's done.
 
 ```javascript
-exports.test = function (window) {
-	function report(name, passed) {
+exports.test = function () {
+	var assert = {
+		success : [],
+		fail : []
+	};
+	function report (name, passed) {
 		if (passed){
-			console.log("✓ %s",name);
+			assert.success.push("\t✓ "+name + " ("+passed+")");
 		} else {
-			console.log("! %s",name);
+			assert.fail.push("\t! "+name);
 		}
 	}
-	report("<h1>",!!window.jQuery("h1").length);
-	return true;
+	report("<h1>",document.getElementsByTagName("h1").length);
+	return assert;
 };
 ```
 
-In the above example the page will be created with [jQuery](http://www.jquery.com) loaded in it, so you can take all the advantage of if and run your tests. You wan't to run your own javascript file use the flag `-s http://my/js/file` or type: `rquery -h`;
+In the above example the page will be created with [jQuery](http://www.jquery.com) loaded in it, so you can take all the advantage of if and run your tests. To load a different script you can use the flag `-i` to inject a different javascript on the page.
 
 5 - run the command
 
 ```
-$ node rquery ./spec.js -u http://www.github.com
+$ phantomjs rquery -s ./spec.js -u http://www.github.com
 ```
 
 terminal output:
 ```
-+ (1/1) http://www.github.com
-   ✓ <h1>
-- no more url to request.
+$ phantomjs rquery -s ./spec.js -u http://github.com
+(1/1)	http://github.com	3.978ms
+	✓ <h1> (4)
 ```
 
-To make this work from everywhere (and chop off the leading `node`):
+To make this work from everywhere (and chop off the leading `phantom`):
 
 1 - change the file persmission: `chmod +x rquery`
 
 2 - `export PATH="path/to/my/clone-rquery:$PATH"`
 
-Now you can just call `$ rquery ./spec.js -u http://www.github.com`
+Now you can just call `$ rquery -s ./spec.js -u http://www.github.com`
 
 ###to-do
 
+- keep the loaded javascript locally and avoid loading every request
 - test request with redirect
 - secure urls
 - setting cookies and extra headers
